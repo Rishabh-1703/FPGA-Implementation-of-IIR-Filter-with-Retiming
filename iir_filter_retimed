@@ -1,0 +1,49 @@
+module iir_filter_retimed(
+    input clk,
+    input rst,
+    input [3:0] x_in,
+    output reg signed [15:0] y_out
+);
+
+    reg [3:0] x0, x1, x2, x3;
+    reg signed [15:0] y_prev;
+
+    // pipeline registers (break long path)
+    reg signed [15:0] ff_stage1;
+    reg signed [15:0] ff_stage2;
+    reg signed [15:0] ff_final;
+
+    always @(posedge clk or posedge rst) begin
+        if (rst) begin
+            x0 <= 0; x1 <= 0; x2 <= 0; x3 <= 0;
+            y_prev <= 0;
+            y_out <= 0;
+            ff_stage1 <= 0;
+            ff_stage2 <= 0;
+            ff_final <= 0;
+        end
+        else begin
+
+            // input shift register (clean pipeline)
+            x3 <= x2;
+            x2 <= x1;
+            x1 <= x0;
+            x0 <= x_in;
+
+            // STEP 1: partial compute (short path)
+            ff_stage1 <= (x0 << 1) + (x1 << 1);
+
+            // STEP 2: second stage (break critical path)
+            ff_stage2 <= ff_stage1 + (x2 << 1);
+
+            // STEP 3: final feedforward sum
+            ff_final <= ff_stage2 + (x3 << 1);
+
+            // IIR feedback (registered feedback path)
+            y_out <= ff_final + y_prev;
+            y_prev <= ff_final + y_prev;
+
+        end
+    end
+
+endmodule
